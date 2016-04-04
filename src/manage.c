@@ -45,6 +45,12 @@
 #include "signal.h"
 #include "ndb.h"
 
+#define USE_NDB_LOCK
+
+#ifdef USE_NDB_LOCK
+#define USE_NDB_DMA
+#endif
+
 /** \defgroup manage Manage
  * Manage acquisition and tracking.
  * Manage how acquisition searches are performed, with data from almanac if
@@ -234,6 +240,14 @@ void manage_acq_setup()
 static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
                              float *dopp_hint_low, float *dopp_hint_high)
 {
+#ifndef NEVER_DEFINE
+  (void)sid;
+  (void)t;
+  (void)dopp_hint_low;
+  (void)dopp_hint_high;
+  return SCORE_COLDSTART; /* Couldn't determine satellite state. */
+#else
+
     /* Do we have any idea where/when we are?  If not, no score. */
     /* TODO: Stricter requirement on time and position uncertainty?
        We ought to keep track of a quantitative uncertainty estimate. */
@@ -284,6 +298,7 @@ static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
     *dopp_hint_low = dopp_hint - dopp_uncertainty;
     *dopp_hint_high = dopp_hint + dopp_uncertainty;
     return SCORE_COLDSTART + SCORE_WARMSTART * el / 90.f;
+#endif
 }
 
 static acq_status_t * choose_acq_sat(void)
@@ -530,9 +545,14 @@ static void manage_track()
     }
 
     /* Is ephemeris or alert flag marked unhealthy?*/
+#ifndef USE_NDB_DMA
     u8 v, h;
     enum ndb_op_code oc = ndb_ephemeris_info(sid, &v, &h, NULL, NULL);
     if((NDB_ERR_NONE == oc) && v && !h) {
+#else
+    const ephemeris_t *e = ndb_ephemeris_get(sid);
+    if (e->valid && !satellite_healthy(e)) {
+#endif
       log_info("%s unhealthy, dropping", buf);
       drop_channel(i);
       acq->state = ACQ_PRN_UNHEALTHY;
@@ -617,6 +637,11 @@ s8 use_tracking_channel(u8 i)
       .wn = WN_UNKNOWN,
       .tow = 1e-3 * tracking_channel_tow_ms_get(i)
     };
+#ifdef USE_NDB_DMA
+    ephemeris_t *e = ndb_ephemeris_get(tracking_channel_sid_get(i));
+    return ephemeris_valid(e, &t) && satellite_healthy(e);
+    } else return 0;
+#else
     gnss_signal_t sid = tracking_channel_sid_get(i);
     u8 v, h, fit_interval;
     gps_time_t toe;
@@ -625,6 +650,7 @@ s8 use_tracking_channel(u8 i)
   }
 
   return 0;
+#endif
 }
 
 u8 tracking_channels_ready()

@@ -115,13 +115,13 @@ static void decoder_gps_l1_process(const decoder_channel_info_t *channel_info,
 
   if (ret <= 0)
     return;
-
+#ifdef NEVER_DEFINED
   /* store new L2C value into NDB if we got it after process_subframe */
   if (dd.gps_l2c_sv_capability_upd_flag) {
     ndb_gps_l2cm_l2c_cap_store(&dd.gps_l2c_sv_capability, NDB_DS_RECEIVER);
     log_info("L2C capabilities received: 0x%x", dd.gps_l2c_sv_capability);
   }
-
+#endif
   if(dd.ephemeris_upd_flag) {
     /* Decoded a new ephemeris. */
     ephemeris_new(dd.ephemeris);
