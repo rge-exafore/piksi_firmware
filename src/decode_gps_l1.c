@@ -18,6 +18,7 @@
 #include "sbp.h"
 #include "sbp_utils.h"
 #include "decode.h"
+#include "ndb.h"
 
 #define NUM_GPS_L1_DECODERS   12
 
@@ -102,16 +103,33 @@ static void decoder_gps_l1_process(const decoder_channel_info_t *channel_info,
 
   /* Decode ephemeris to temporary struct */
   ephemeris_t e = {.sid = channel_info->sid};
-  s8 ret = process_subframe(&data->nav_msg, &e);;
+  gps_l1ca_decoded_data_t dd = {
+    .ephemeris = &e,
+    .ephemeris_upd_flag = false,
+    .gps_l2c_sv_capability = 0,
+    .gps_l2c_sv_capability_upd_flag = false
+  };
+  s8 ret = process_subframe(&data->nav_msg, &dd);
 
   if (ret <= 0)
     return;
 
-  /* Decoded a new ephemeris. */
-  ephemeris_new(&e);
+  /* store new L2C value into NDB if we got it after process_subframe */
+  if (dd.gps_l2c_sv_capability_upd_flag) {
+    ndb_gps_l2cm_l2c_cap_store(&dd.gps_l2c_sv_capability, NDB_DS_RECEIVER);
+    log_info("L2C capabilities received: 0x%x", dd.gps_l2c_sv_capability);
+  }
 
-  ephemeris_t *eph = ephemeris_get(channel_info->sid);
-  if (!eph->valid) {
-    log_info_sid(channel_info->sid, "ephemeris is invalid");
+  if(dd.ephemeris_upd_flag) {
+    /* Decoded a new ephemeris. */
+    ephemeris_new(dd.ephemeris);
+
+    u8 v, h;
+    ndb_ephemeris_info(channel_info->sid, &v, &h, NULL, NULL);
+    if (!v) {
+      char buf[SID_STR_LEN_MAX];
+      sid_to_string(buf, sizeof(buf), channel_info->sid);
+      log_info("%s ephemeris wasn't stored", buf);
+    }
   }
 }

@@ -43,6 +43,7 @@
 #include "./system_monitor.h"
 #include "settings.h"
 #include "signal.h"
+#include "ndb.h"
 
 /** \defgroup manage Manage
  * Manage acquisition and tracking.
@@ -112,9 +113,6 @@ typedef struct {
 static tracking_startup_fifo_t tracking_startup_fifo;
 
 static MUTEX_DECL(tracking_startup_mutex);
-
-static almanac_t almanac[PLATFORM_SIGNAL_COUNT];
-
 static float elevation_mask = 0.0; /* degrees */
 static bool sbas_enabled = false;
 
@@ -191,8 +189,6 @@ void manage_acq_setup()
     acq_status[i].sid = sid_from_global_index(i);
 
     track_mask[i] = false;
-    almanac[i].valid = 0;
-
     if (!sbas_enabled &&
         (sid_to_constellation(acq_status[i].sid) == CONSTELLATION_SBAS)) {
       acq_status[i].masked = true;
@@ -235,54 +231,64 @@ void manage_acq_setup()
 static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
                              float *dopp_hint_low, float *dopp_hint_high)
 {
-    /* Do we have any idea where/when we are?  If not, no score. */
-    /* TODO: Stricter requirement on time and position uncertainty?
-       We ought to keep track of a quantitative uncertainty estimate. */
-    if (time_quality < TIME_GUESS &&
-        position_quality < POSITION_GUESS)
-      return SCORE_COLDSTART;
-
-    float el = 0;
-    double el_d, _, dopp_hint = 0, dopp_uncertainty = DOPP_UNCERT_ALMANAC;
-
-    /* Do we have a suitable ephemeris for this sat?  If so, use
-       that in preference to the almanac. */
-    const ephemeris_t *e = ephemeris_get(sid);
-    if (ephemeris_valid(e, t)) {
-      double sat_pos[3], sat_vel[3], el_d;
-      calc_sat_state(e, t, sat_pos, sat_vel, &_, &_);
-      wgsecef2azel(sat_pos, position_solution.pos_ecef, &_, &el_d);
-      el = (float)(el_d) * R2D;
-      if (el < elevation_mask)
-        return SCORE_BELOWMASK;
-      vector_subtract(3, sat_pos, position_solution.pos_ecef, sat_pos);
-      vector_normalize(3, sat_pos);
-      /* sat_pos now holds unit vector from us to satellite */
-      vector_subtract(3, sat_vel, position_solution.vel_ecef, sat_vel);
-      /* sat_vel now holds velocity of sat relative to us */
-      dopp_hint = -GPS_L1_HZ * (vector_dot(3, sat_pos, sat_vel) / GPS_C
-                                + position_solution.clock_bias);
-      /* TODO: Check sign of receiver frequency offset correction */
-      if (time_quality >= TIME_FINE)
-        dopp_uncertainty = DOPP_UNCERT_EPHEM;
-    } else {
-      const almanac_t *a = &almanac[sid_to_global_index(sid)];
-      if (a->valid) {
-        calc_sat_az_el_almanac(a, t->tow, t->wn-1024,
-                               position_solution.pos_ecef, &_, &el_d);
+#ifdef NEVER_DEFINED
+  (void) sid;
+  (void) t;
+  (void) dopp_hint_low;
+  (void) dopp_hint_high;
+  return SCORE_COLDSTART;
+#else
+  float el = 0;
+  double el_d, _, dopp_hint = 0, dopp_uncertainty = DOPP_UNCERT_ALMANAC;
+  /* Do we have any idea where/when we are?  If not, no score. */
+  /* TODO: Stricter requirement on time and position uncertainty?
+     We ought to keep track of a quantitative uncertainty estimate. */
+  if (time_quality < TIME_GUESS && position_quality < POSITION_GUESS) {
+    return SCORE_COLDSTART;
+  } else {
+  /* Do we have a suitable ephemeris for this sat?  If so, use
+     that in preference to the almanac. */
+    ephemeris_t ephe;
+    enum ndb_op_code oc = ndb_ephemeris_read(sid, &ephe);
+    if((NDB_ERR_NONE == oc) && ephemeris_valid(&ephe, t)) {
+        double sat_pos[3], sat_vel[3];
+        calc_sat_state(&ephe, t, sat_pos, sat_vel, &_, &_);
+        wgsecef2azel(sat_pos, position_solution.pos_ecef, &_, &el_d);
         el = (float)(el_d) * R2D;
         if (el < elevation_mask)
           return SCORE_BELOWMASK;
-        dopp_hint = -calc_sat_doppler_almanac(a, t->tow, t->wn,
-                                              position_solution.pos_ecef);
-      } else {
-        return SCORE_COLDSTART; /* Couldn't determine satellite state. */
+        vector_subtract(3, sat_pos, position_solution.pos_ecef, sat_pos);
+        vector_normalize(3, sat_pos);
+        /* sat_pos now holds unit vector from us to satellite */
+        vector_subtract(3, sat_vel, position_solution.vel_ecef, sat_vel);
+        /* sat_vel now holds velocity of sat relative to us */
+        dopp_hint = -GPS_L1_HZ * (vector_dot(3, sat_pos, sat_vel) / GPS_C
+                                  + position_solution.clock_bias);
+        /* TODO: Check sign of receiver frequency offset correction */
+        if (time_quality >= TIME_FINE)
+          dopp_uncertainty = DOPP_UNCERT_EPHEM;
       }
+  }
+  if (DOPP_UNCERT_ALMANAC == dopp_uncertainty) {
+    almanac_t alma;
+    enum ndb_op_code oc = ndb_almanac_read(sid, &alma);
+    if((NDB_ERR_NONE == oc) && (alma.valid)) {
+      calc_sat_az_el_almanac(&alma, t->tow, t->wn-1024,
+                             position_solution.pos_ecef, &_, &el_d);
+      el = (float)(el_d) * R2D;
+      if (el < elevation_mask)
+        return SCORE_BELOWMASK;
+      dopp_hint = -calc_sat_doppler_almanac(&alma, t->tow, t->wn,
+                                            position_solution.pos_ecef);
+    } else {
+      return SCORE_COLDSTART; /* Couldn't determine satellite state. */
     }
-    /* Return the doppler hints and a score proportional to elevation */
-    *dopp_hint_low = dopp_hint - dopp_uncertainty;
-    *dopp_hint_high = dopp_hint + dopp_uncertainty;
-    return SCORE_COLDSTART + SCORE_WARMSTART * el / 90.f;
+  }
+  /* Return the doppler hints and a score proportional to elevation */
+  *dopp_hint_low = dopp_hint - dopp_uncertainty;
+  *dopp_hint_high = dopp_hint + dopp_uncertainty;
+  return SCORE_COLDSTART + SCORE_WARMSTART * el / 90.f;
+#endif
 }
 
 static acq_status_t * choose_acq_sat(void)
@@ -530,10 +536,10 @@ static void manage_track()
     }
 
     /* Is ephemeris or alert flag marked unhealthy?*/
-    const ephemeris_t *e = ephemeris_get(sid);
-    /* TODO: check alert flag */
-    if (e->valid && !satellite_healthy(e)) {
-      log_info_sid(sid, "unhealthy, dropping");
+    u8 v, h;
+    enum ndb_op_code oc = ndb_ephemeris_info(sid, &v, &h, NULL, NULL);
+    if((NDB_ERR_NONE == oc) && v && !h) {
+      log_info_sid(sid,"unhealthy, dropping");
       drop_channel(i);
       acq->state = ACQ_PRN_UNHEALTHY;
       continue;
@@ -606,9 +612,9 @@ s8 use_tracking_channel(u8 i)
       /* Channel time of week has been decoded. */
       && (tracking_channel_tow_ms_get(i) != TOW_INVALID)
       /* Nav bit polarity is known, i.e. half-cycles have been resolved. */
-      && tracking_channel_bit_polarity_resolved(i))
+      && tracking_channel_bit_polarity_resolved(i)) {
       /* TODO: Alert flag is not set */
-      {
+
     /* Ephemeris must be valid, not stale. Satellite must be healthy.
        This also acts as a sanity check on the channel TOW.*/
     gps_time_t t = {
@@ -617,9 +623,14 @@ s8 use_tracking_channel(u8 i)
       .wn = WN_UNKNOWN,
       .tow = 1e-3 * tracking_channel_tow_ms_get(i)
     };
-    ephemeris_t *e = ephemeris_get(tracking_channel_sid_get(i));
-    return ephemeris_valid(e, &t) && satellite_healthy(e);
-  } else return 0;
+    gnss_signal_t sid = tracking_channel_sid_get(i);
+    u8 v, h, fit_interval;
+    gps_time_t toe;
+    ndb_ephemeris_info(sid, &v, &h, &toe, &fit_interval);
+    return ephemeris_params_valid(v, fit_interval, &toe, &t) && h;
+  }
+
+  return 0;
 }
 
 u8 tracking_channels_ready()
