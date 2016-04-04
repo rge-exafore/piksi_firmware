@@ -41,6 +41,8 @@
 #include "signal.h"
 #include "system_monitor.h"
 
+#define USE_NDB_LOCK
+
 MemoryPool obs_buff_pool;
 Mailbox obs_mailbox;
 
@@ -410,10 +412,15 @@ static msg_t solution_thread(void *arg)
       p_e_meas[i] = &ephe_cache[i];
     }
 
+#ifdef USE_NDB_LOCK
+    ndb_lock(1);
+#endif
     calc_navigation_measurement(n_ready, p_meas, p_nav_meas,
                                 (double)((u32)nav_tc)/SAMPLE_FREQ,
                                 (const ephemeris_t**)p_e_meas);
-
+#ifdef USE_NDB_LOCK
+    ndb_lock(0);
+#endif
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
                                    nav_meas_old, nav_meas_tdcp);
@@ -468,7 +475,9 @@ static msg_t solution_thread(void *arg)
           /* Hook in low-latency filter here. */
           if (dgnss_soln_mode == SOLN_MODE_LOW_LATENCY &&
               base_obss.has_pos) {
-
+#ifdef USE_NDB_LOCK
+            ndb_lock(1);
+#endif
             const ephemeris_t *e_nav_meas_tdcp[MAX_CHANNELS];
             for (u32 i=0; i<n_ready_tdcp; i++)
             {
@@ -481,6 +490,9 @@ static msg_t solution_thread(void *arg)
                                     base_obss.sat_dists, base_obss.pos_ecef,
                                     e_nav_meas_tdcp, &position_solution.time,
                                     sdiffs);
+#ifdef USE_NDB_LOCK
+            ndb_lock(0);
+#endif
             if (num_sdiffs >= 4) {
               output_baseline(num_sdiffs, sdiffs, &position_solution.time);
             }

@@ -19,10 +19,14 @@
 
 typedef Thread *ndb_thread_t;
 
+/* #define USE_NDB_THREAD */
+#ifdef USE_NDB_THREAD
 static ndb_thread_t ndb_thread;
 #define NDB_THREAD_PRIORITY (LOWPRIO)
 static WORKING_AREA_CCM(ndb_thread_wa, 1756);
 static msg_t ndb_service_thread(void*);
+#endif
+
 MUTEX_DECL(data_access);
 
 ndb_element_metadata_t *wq_first = NULL;
@@ -30,14 +34,18 @@ ndb_element_metadata_t *wq_last = NULL;
 CONDVAR_DECL(wq_new_data);
 MUTEX_DECL(wq_access);
 
+#ifdef USE_NDB_THREAD
 static enum ndb_op_code ndb_wq_put(ndb_element_metadata_t* md);
 static enum ndb_op_code ndb_wq_get(ndb_element_metadata_t** md);
+#endif
 
 static enum ndb_op_code ndb_open_file(ndb_file_t *file, char *v);
 static enum ndb_op_code ndb_read(ndb_file_t *f, void *first_element, size_t s);
 
+#ifdef USE_NDB_THREAD
 static enum ndb_op_code do_nv_writes(bool *data_write_ok, bool *md_write_ok);
 static void do_sbp_updates();
+#endif
 
 enum ndb_op_code ndb_p1_init();
 enum ndb_op_code ndb_p3_init() NDB_WEAK;
@@ -49,6 +57,7 @@ enum ndb_op_code ndb_gps_l2cm_l2c_cap_read(u32 *l2c_cap) NDB_WEAK;
 enum ndb_op_code ndb_gps_l2cm_l2c_cap_store(u32 *l2c_cap,
                                             enum ndb_data_source src) NDB_WEAK;
 
+#ifdef USE_NDB_THREAD
 enum ndb_op_code ndb_wq_put(ndb_element_metadata_t* md)
 {
   chMtxLock(&wq_access);
@@ -87,13 +96,16 @@ enum ndb_op_code ndb_wq_get(ndb_element_metadata_t** md)
   chMtxUnlock();
   return NDB_ERR_NONE;
 }
+#endif
 
 enum ndb_op_code ndb_init()
 {
+#ifdef USE_NDB_THREAD
   ndb_thread = chThdCreateStatic(ndb_thread_wa, sizeof(ndb_thread_wa),
                                  NDB_THREAD_PRIORITY,
                                  ndb_service_thread,
                                  NULL);
+#endif
 
   ndb_p1_init();
   ndb_p3_init();
@@ -147,6 +159,7 @@ ndb_timestamp_t ndb_get_timestamp()
   return chTimeNow();
 }
 
+#ifdef USE_NDB_THREAD
 static msg_t ndb_service_thread(void* p)
 {
   (void) (p);
@@ -220,6 +233,7 @@ void do_sbp_updates()
   ndb_p1_sbp_update();
   ndb_p3_sbp_update();
 }
+#endif
 
 /**
  * Opens NDB file that stores information elements of certain type.
@@ -336,7 +350,9 @@ enum ndb_op_code ndb_update(void* cached, void* new, size_t size,
   md->nv_data.state |= NDB_IE_DIRTY;
   md->nv_data.source = src;
 
+#ifdef USE_NDB_THREAD
   ndb_wq_put(md);
+#endif
 
   ndb_lock(0);
   return NDB_ERR_NONE;
