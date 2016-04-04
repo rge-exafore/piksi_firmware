@@ -42,7 +42,7 @@ enum ndb_data_source
 };
 
 #define MAX_NDB_FILE_VERSION_LEN 64
-#define ndb_file_version GIT_VERSION
+#define ndb_file_version GIT_VERSION"A"
 
 /** NDB IE update counter type */
 typedef u8 ndb_update_counter_t;
@@ -103,7 +103,8 @@ inline enum ndb_op_code ndb_not_implemented()
   return NDB_ERR_UNSUPPORTED;
 }
 
-void ndb_lock(u8 lock);
+void ndb_lock();
+void ndb_unlock();
 ndb_timestamp_t ndb_get_timestamp();
 enum ndb_op_code ndb_not_implemented();
 enum ndb_op_code ndb_init();
@@ -127,6 +128,8 @@ enum ndb_op_code ndb_ephemeris_info(gnss_signal_t sid, u8* v, u8* h,
                                     gps_time_t* toe, u8* fit_interval);
 enum ndb_op_code ndb_update_cache_ephemeris(ephemeris_t *cached_e,
                                             ndb_update_counter_t *uc);
+
+ephemeris_t* ndb_ephemeris_get(gnss_signal_t sid);
 
 enum ndb_op_code ndb_almanac_read(gnss_signal_t sid, almanac_t *a);
 enum ndb_op_code ndb_almanac_store(almanac_t *a, enum ndb_data_source);

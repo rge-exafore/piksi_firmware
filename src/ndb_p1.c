@@ -10,6 +10,7 @@
  * WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
  */
 #include <string.h>
+#include <assert.h>
 #include "ndb.h"
 #include "libswiftnav/logging.h"
 #include "timing.h"
@@ -90,6 +91,14 @@ enum ndb_op_code ndb_ephemeris_read(gnss_signal_t sid, ephemeris_t *e)
   return NDB_ERR_NONE;
 }
 
+ephemeris_t* ndb_ephemeris_get(gnss_signal_t sid)
+{
+  assert(sid_supported(sid));
+  u16 idx = sid_to_global_index(sid);
+  return &ndb_ephemeris[idx];
+}
+
+
 enum ndb_op_code ndb_update_cache_ephemeris(ephemeris_t *cached_e,
                                             ndb_update_counter_t *uc)
 {
@@ -123,7 +132,7 @@ enum ndb_op_code ndb_ephemeris_info(gnss_signal_t sid, u8* v, u8* h,
                                     gps_time_t* toe, u8* fit_interval)
 {
   u16 idx = sid_to_global_index(sid);
-  ndb_lock(1);
+  ndb_lock();
   *v = ndb_ephemeris[idx].valid;
   *h = ndb_ephemeris[idx].healthy;
   if (NULL != toe) {
@@ -132,7 +141,7 @@ enum ndb_op_code ndb_ephemeris_info(gnss_signal_t sid, u8* v, u8* h,
   if (NULL != fit_interval) {
     *fit_interval = ndb_ephemeris[idx].fit_interval;
   }
-  ndb_lock(0);
+  ndb_unlock();
   return NDB_ERR_NONE;
 }
 

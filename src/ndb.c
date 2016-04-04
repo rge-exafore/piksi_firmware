@@ -195,17 +195,17 @@ enum ndb_op_code do_nv_writes(bool *data_write_ok, bool *md_write_ok)
   } else {
     ndb_element_metadata_t md_copy;
     ndb_element_t buf;
-    ndb_lock(1);
+    ndb_lock();
     memcpy(&buf, md->data, md->data_size);
     memcpy(&md_copy, md, sizeof(ndb_element_metadata_t));
-    ndb_lock(0);
+    ndb_unlock();
     ret = ndb_write_file_data(md->file, md->data_size * md->index, &buf,
                               md->data_size);
     *data_write_ok = NDB_ERR_NONE == ret;
     if (data_write_ok) {
-      ndb_lock(1);
+      ndb_lock();
       changed = memcmp(md->data, &buf, md->data_size);
-      ndb_lock(0);
+      ndb_unlock();
       if (!changed) {
         /*
          * Data hasn't changed while i/o operation was running -
@@ -318,16 +318,22 @@ enum ndb_op_code ndb_read(ndb_file_t *file, void *first_element, size_t size)
           NDB_ERR_NONE : NDB_ERR_FILE_IO;
 }
 
-void ndb_lock(u8 lock)
+void ndb_lock()
 {
-  lock ? chMtxLock(&data_access) : chMtxUnlock();
+  chMtxLock(&data_access);
+}
+
+void ndb_unlock()
+{
+  Mutex *m = chMtxUnlock();
+  assert(m == &data_access);
 }
 
 void ndb_retrieve(void* out, void* cached, size_t size)
 {
-  ndb_lock(1);
+  ndb_lock();
   memcpy(out, cached, size);
-  ndb_lock(0);
+  ndb_unlock();
 }
 
 enum ndb_op_code ndb_update(void* cached, void* new, size_t size,
@@ -335,9 +341,9 @@ enum ndb_op_code ndb_update(void* cached, void* new, size_t size,
                             ndb_element_metadata_t *md, u8 and_state_mask,
                             u8 or_state_mask)
 {
-  ndb_lock(1);
+  ndb_lock();
   if (memcmp(new, cached, size) == 0) {
-    ndb_lock(0);
+    ndb_unlock();
     return NDB_ERR_NONE;
   }
   memcpy(cached, new, size);
@@ -354,6 +360,6 @@ enum ndb_op_code ndb_update(void* cached, void* new, size_t size,
   ndb_wq_put(md);
 #endif
 
-  ndb_lock(0);
+  ndb_unlock();
   return NDB_ERR_NONE;
 }
