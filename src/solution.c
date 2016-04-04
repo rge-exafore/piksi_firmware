@@ -25,6 +25,7 @@
 
 #include <ch.h>
 
+#include "ndb.h"
 #include "board/leds.h"
 #include "position.h"
 #include "nmea.h"
@@ -39,6 +40,12 @@
 #include "ephemeris.h"
 #include "signal.h"
 #include "system_monitor.h"
+
+/*#define USE_NDB_LOCK*/
+
+#ifdef USE_NDB_LOCK
+#define USE_NDB_DMA
+#endif
 
 MemoryPool obs_buff_pool;
 Mailbox obs_mailbox;
@@ -362,6 +369,9 @@ static msg_t solution_thread(void *arg)
 
   systime_t deadline = chTimeNow() + MS2ST(100);
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
+#ifndef USE_NDB_DMA
+  ephemeris_t ephe_cache[MAX_CHANNELS];
+#endif
 
   while (TRUE) {
     chThdSleepUntilCheck(deadline);
@@ -398,21 +408,28 @@ static msg_t solution_thread(void *arg)
     static u8 n_ready_old = 0;
     u64 nav_tc = nap_timing_count();
     static navigation_measurement_t nav_meas[MAX_CHANNELS];
-
-    const channel_measurement_t *p_meas[n_ready];
-    navigation_measurement_t *p_nav_meas[n_ready];
-    const ephemeris_t *p_e_meas[n_ready];
+    const channel_measurement_t *p_meas[MAX_CHANNELS];
+    navigation_measurement_t *p_nav_meas[MAX_CHANNELS];
+    const ephemeris_t *p_e_meas[MAX_CHANNELS];
     for (u8 i=0; i<n_ready; i++) {
       p_meas[i] = &meas[i];
       p_nav_meas[i] = &nav_meas[i];
-      p_e_meas[i] = ephemeris_get(meas[i].sid);
+#ifndef USE_NDB_DMA
+      ndb_ephemeris_read(meas[i].sid, &ephe_cache[i]);
+      p_e_meas[i] = &ephe_cache[i];
+#else
+      p_e_meas[i] = ndb_ephemeris_get(meas[i].sid);
+#endif
     }
 
-    ephemeris_lock();
+#ifdef USE_NDB_LOCK
+    ndb_lock();
+#endif
     calc_navigation_measurement(n_ready, p_meas, p_nav_meas,
                                 (double)((u32)nav_tc)/SAMPLE_FREQ, p_e_meas);
-    ephemeris_unlock();
-
+#ifdef USE_NDB_LOCK
+    ndb_unlock();
+#endif
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
                                    nav_meas_old, nav_meas_tdcp);
@@ -467,19 +484,28 @@ static msg_t solution_thread(void *arg)
           /* Hook in low-latency filter here. */
           if (dgnss_soln_mode == SOLN_MODE_LOW_LATENCY &&
               base_obss.has_pos) {
-
-            ephemeris_lock();
-            const ephemeris_t *e_nav_meas_tdcp[n_ready_tdcp];
+#ifdef USE_NDB_LOCK
+            ndb_lock();
+#endif
+            const ephemeris_t *e_nav_meas_tdcp[MAX_CHANNELS];
             for (u32 i=0; i<n_ready_tdcp; i++)
-              e_nav_meas_tdcp[i] = ephemeris_get(nav_meas_tdcp[i].sid);
-
-            sdiff_t sdiffs[MAX(base_obss.n, n_ready_tdcp)];
+            {
+#ifndef USE_NDB_DMA
+              ndb_ephemeris_read(nav_meas_tdcp[i].sid, &ephe_cache[i]);
+              e_nav_meas_tdcp[i] = &ephe_cache[i];
+#else
+              e_nav_meas_tdcp[i] = ndb_ephemeris_get(nav_meas_tdcp[i].sid);
+#endif
+            }
+            sdiff_t sdiffs[MAX_CHANNELS];
             u8 num_sdiffs = make_propagated_sdiffs(n_ready_tdcp, nav_meas_tdcp,
                                     base_obss.n, base_obss.nm,
                                     base_obss.sat_dists, base_obss.pos_ecef,
                                     e_nav_meas_tdcp, &position_solution.time,
                                     sdiffs);
-            ephemeris_unlock();
+#ifdef USE_NDB_LOCK
+            ndb_unlock();
+#endif
             if (num_sdiffs >= 4) {
               output_baseline(num_sdiffs, sdiffs, &position_solution.time);
             }
@@ -658,11 +684,11 @@ static msg_t time_matched_obs_thread(void *arg)
         );
         chMtxUnlock();
 
-        u16 *sds_lock_counters[n_sds];
+        u16 *sds_lock_counters[MAX_CHANNELS];
         for (u32 i=0; i<n_sds; i++)
           sds_lock_counters[i] = &lock_counters[sid_to_global_index(sds[i].sid)];
 
-        gnss_signal_t sats_to_drop[n_sds];
+        gnss_signal_t sats_to_drop[MAX_CHANNELS];
         u8 num_sats_to_drop = check_lock_counters(n_sds, sds, sds_lock_counters,
                                                   sats_to_drop);
         if (num_sats_to_drop > 0) {
