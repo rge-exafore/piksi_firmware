@@ -28,6 +28,7 @@
 #undef memory_pool_t
 
 #include "peripherals/leds.h"
+#include "ndb.h"
 #include "position.h"
 #include "nmea.h"
 #include "sbp.h"
@@ -393,6 +394,7 @@ static void solution_thread(void *arg)
 
   systime_t deadline = chVTGetSystemTimeX();
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
+  static ephemeris_t ephe_cache[MAX_CHANNELS];
 
   while (TRUE) {
 
@@ -427,20 +429,18 @@ static void solution_thread(void *arg)
     static u8 n_ready_old = 0;
     u64 nav_tc = nap_timing_count();
     static navigation_measurement_t nav_meas[MAX_CHANNELS];
-
     const channel_measurement_t *p_meas[n_ready];
     navigation_measurement_t *p_nav_meas[n_ready];
     const ephemeris_t *p_e_meas[n_ready];
     for (u8 i=0; i<n_ready; i++) {
       p_meas[i] = &meas[i];
       p_nav_meas[i] = &nav_meas[i];
-      p_e_meas[i] = ephemeris_get(meas[i].sid);
+      ndb_ephemeris_read(meas[i].sid, &ephe_cache[i]);
+      p_e_meas[i] = &ephe_cache[i];
     }
 
-    ephemeris_lock();
     calc_navigation_measurement(n_ready, p_meas, p_nav_meas,
                                 (double)((u32)nav_tc)/SAMPLE_FREQ, p_e_meas);
-    ephemeris_unlock();
 
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
@@ -473,7 +473,6 @@ static void solution_thread(void *arg)
       DO_EVERY((u32)soln_freq,
                update_sat_elevations(nav_meas_tdcp, n_ready_tdcp,
                                      position_solution.pos_ecef));
-
       if (!simulation_enabled()) {
         /* Output solution. */
         solution_send_sbp(&position_solution, &dops);
@@ -486,6 +485,7 @@ static void solution_thread(void *arg)
        * differential solution. */
       double pdt;
       chMtxLock(&base_obs_lock);
+
       if (base_obss.n > 0 && !simulation_enabled()) {
         if ((pdt = gpsdifftime(&position_solution.time, &base_obss.t))
               < MAX_AGE_OF_DIFFERENTIAL) {
@@ -496,25 +496,23 @@ static void solution_thread(void *arg)
           /* Hook in low-latency filter here. */
           if (dgnss_soln_mode == SOLN_MODE_LOW_LATENCY &&
               base_obss.has_pos) {
-
-            ephemeris_lock();
             const ephemeris_t *e_nav_meas_tdcp[n_ready_tdcp];
             for (u32 i=0; i<n_ready_tdcp; i++)
-              e_nav_meas_tdcp[i] = ephemeris_get(nav_meas_tdcp[i].sid);
-
+            {
+              ndb_ephemeris_read(nav_meas_tdcp[i].sid, &ephe_cache[i]);
+              e_nav_meas_tdcp[i] = &ephe_cache[i];
+            }
             sdiff_t sdiffs[MAX(base_obss.n, n_ready_tdcp)];
             u8 num_sdiffs = make_propagated_sdiffs(n_ready_tdcp, nav_meas_tdcp,
                                     base_obss.n, base_obss.nm,
                                     base_obss.sat_dists, base_obss.pos_ecef,
                                     e_nav_meas_tdcp, &position_solution.time,
                                     sdiffs);
-            ephemeris_unlock();
             if (num_sdiffs >= 4) {
               output_baseline(num_sdiffs, sdiffs, &position_solution.time, pdt, 
                               dops.hdop, base_obss.sender_id);
             }
           }
-
         }
       }
       chMtxUnlock(&base_obs_lock);
@@ -602,7 +600,7 @@ static void solution_thread(void *arg)
       /* Send just the DOPs */
       solution_send_sbp(0, &dops);
     }
-  }
+  } /* while (TRUE) - main loop */
 }
 
 static bool init_done = false;
