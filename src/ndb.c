@@ -19,7 +19,7 @@
 
 typedef Thread *ndb_thread_t;
 
-/* #define USE_NDB_THREAD */
+#define USE_NDB_THREAD
 #ifdef USE_NDB_THREAD
 static ndb_thread_t ndb_thread;
 #define NDB_THREAD_PRIORITY (LOWPRIO)
