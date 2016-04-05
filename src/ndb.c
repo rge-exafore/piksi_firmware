@@ -19,6 +19,9 @@
 
 typedef Thread *ndb_thread_t;
 
+#define SEND_SBP_DATA
+/*#define WRITE_TO_FLASH*/
+
 #define USE_NDB_THREAD
 #ifdef USE_NDB_THREAD
 static ndb_thread_t ndb_thread;
@@ -363,7 +366,9 @@ enum ndb_op_code ndb_update(void* cached, void* new, size_t size,
   md->nv_data.source = src;
 
 #ifdef USE_NDB_THREAD
+#ifdef WRITE_TO_FLASH
   ndb_wq_put(md);
+#endif
 #endif
 
   ndb_unlock();
