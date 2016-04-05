@@ -39,7 +39,7 @@
 
 extern bool disable_raim;
 
-#define USE_NDB_LOCK
+/* #define USE_NDB_LOCK*/
 
 #ifdef USE_NDB_LOCK
 #define USE_NDB_DMA
@@ -345,7 +345,9 @@ static void obs_callback(u16 sender_id, u8 len, u8 msg[], void* context)
       base_obss_rx.nm[base_obss_rx.n].tot = t;
       base_obss_rx.n++;
     }
+#ifdef USE_NDB_DMA
     ndb_unlock();
+#endif
   }
 
   /* If we can, and all the obs have been received, update to using the new
