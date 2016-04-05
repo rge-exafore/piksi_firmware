@@ -44,7 +44,9 @@ static enum ndb_op_code ndb_read(ndb_file_t *f, void *first_element, size_t s);
 
 #ifdef USE_NDB_THREAD
 static enum ndb_op_code do_nv_writes(bool *data_write_ok, bool *md_write_ok);
+#ifdef SEND_SBP_DATA
 static void do_sbp_updates();
+#endif
 #endif
 
 enum ndb_op_code ndb_p1_init();
@@ -169,7 +171,9 @@ static msg_t ndb_service_thread(void* p)
 
   while (true) {
     if (NDB_ERR_TIMEOUT == do_nv_writes(&data_write_ok, &md_write_ok)) {
+#ifdef SEND_SBP_DATA
       do_sbp_updates();
+#endif
     } else {
       if (data_write_ok && md_write_ok)
         log_info("Data and metadata were written to the NDB file");
@@ -228,11 +232,13 @@ enum ndb_op_code do_nv_writes(bool *data_write_ok, bool *md_write_ok)
   return NDB_ERR_NONE;
 }
 
+#ifdef SEND_SBP_DATA
 void do_sbp_updates()
 {
   ndb_p1_sbp_update();
   ndb_p3_sbp_update();
 }
+#endif
 #endif
 
 /**

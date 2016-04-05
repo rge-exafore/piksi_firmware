@@ -42,7 +42,7 @@ enum ndb_data_source
 };
 
 #define MAX_NDB_FILE_VERSION_LEN 64
-#define ndb_file_version GIT_VERSION"B"
+#define ndb_file_version GIT_VERSION"C"
 
 /** NDB IE update counter type */
 typedef u8 ndb_update_counter_t;
