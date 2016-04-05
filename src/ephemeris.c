@@ -24,6 +24,8 @@
 #include "signal.h"
 #include "ndb.h"
 
+/*#define SAVE_EPHE_FROM_SBP*/
+
 static ephemeris_t es_candidate[PLATFORM_SIGNAL_COUNT] _CCM;
 
 void ephemeris_new(ephemeris_t *e)
@@ -68,9 +70,11 @@ static void ephemeris_msg_callback(u16 sender_id, u8 len, u8 msg[], void* contex
     log_warn("Ignoring ephemeris for invalid sat");
     return;
   }
-  /* We trust epehemeris that we received over SBP, so save it to NDB right
+#ifdef SAVE_EPHE_FROM_SBP
+  /* We trust ephemeris that we received over SBP, so save it to NDB right
    * away. If we receive new one from the sky twice it will replace it. */
   ndb_ephemeris_store(&e, NDB_DS_SBP);
+#endif
 }
 
 void ephemeris_setup(void)

@@ -20,7 +20,7 @@
 typedef Thread *ndb_thread_t;
 
 #define SEND_SBP_DATA
-/*#define WRITE_TO_FLASH*/
+#define WRITE_TO_FLASH
 
 #define USE_NDB_THREAD
 #ifdef USE_NDB_THREAD
