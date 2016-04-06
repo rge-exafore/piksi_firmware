@@ -24,8 +24,6 @@
 #include "signal.h"
 #include "ndb.h"
 
-#define SAVE_EPHE_FROM_SBP
-
 static ephemeris_t es_candidate[PLATFORM_SIGNAL_COUNT] _CCM;
 
 void ephemeris_new(ephemeris_t *e)
@@ -70,20 +68,16 @@ static void ephemeris_msg_callback(u16 sender_id, u8 len, u8 msg[], void* contex
     log_warn("Ignoring ephemeris for invalid sat");
     return;
   }
-#ifdef SAVE_EPHE_FROM_SBP
-  u8 v;
-  u8 h;
+  u8 v, h;
   gps_time_t toe;
-
   ndb_ephemeris_info(e.sid, &v, &h, &toe, NULL);
-  if(!v || (e.toe.wn > toe.wn) || (e.toe.tow > toe.tow)) {
+  if(!v || gpsdifftime(&e.toe, &toe) > 0) {
   /* If local ephemeris is not valid or received one is newer then
    * save the received one. */
     log_info("Saving ephemeris received over SBP v:%d [%d,%d] vs [%d,%d]",
              (int)v, toe.wn, toe.tow, e.toe.wn, e.toe.tow);
     ndb_ephemeris_store(&e, NDB_DS_SBP);
   }
-#endif
 }
 
 void ephemeris_setup(void)

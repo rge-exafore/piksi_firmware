@@ -39,12 +39,6 @@
 
 extern bool disable_raim;
 
-/* #define USE_NDB_LOCK*/
-
-#ifdef USE_NDB_LOCK
-#define USE_NDB_DMA
-#endif
-
 /** \defgroup base_obs Base station observation handling
  * \{ */
 
@@ -307,15 +301,9 @@ static void obs_callback(u16 sender_id, u8 len, u8 msg[], void* context)
 
     /* Check if we have an ephemeris for this satellite, we will need this to
      * fill in satellite position etc. parameters. */
-#ifndef USE_NDB_DMA
     ephemeris_t ephe;
     if((ndb_ephemeris_read(sid, &ephe) == NDB_ERR_NONE) &&
        (ephemeris_valid(&ephe, &t))) {
-#else
-    ndb_lock();
-    ephemeris_t *e = ndb_ephemeris_get(sid);
-    if (ephemeris_valid(e, &t)) {
-#endif
       /* Unpack the observation into a navigation_measurement_t. */
       unpack_obs_content(
         &obs[i],
@@ -328,11 +316,7 @@ static void obs_callback(u16 sender_id, u8 len, u8 msg[], void* context)
       double clock_err;
       double clock_rate_err;
       /* Calculate satellite parameters using the ephemeris. */
-#ifndef USE_NDB_DMA
       calc_sat_state(&ephe, &t,
-#else
-      calc_sat_state(e, &t,
-#endif
                      base_obss_rx.nm[base_obss_rx.n].sat_pos,
                      base_obss_rx.nm[base_obss_rx.n].sat_vel,
                      &clock_err, &clock_rate_err);
@@ -345,9 +329,6 @@ static void obs_callback(u16 sender_id, u8 len, u8 msg[], void* context)
       base_obss_rx.nm[base_obss_rx.n].tot = t;
       base_obss_rx.n++;
     }
-#ifdef USE_NDB_DMA
-    ndb_unlock();
-#endif
   }
 
   /* If we can, and all the obs have been received, update to using the new

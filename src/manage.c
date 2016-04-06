@@ -45,7 +45,7 @@
 #include "signal.h"
 #include "ndb.h"
 
-#define USE_NDB_LOCK
+/*#define USE_NDB_LOCK*/
 
 #ifdef USE_NDB_LOCK
 #define USE_NDB_DMA
