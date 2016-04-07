@@ -43,7 +43,7 @@
 
 #define USE_LED_RED_FOR_TIMING
 
-#define USE_NDB_LOCK
+/*#define USE_NDB_LOCK*/
 
 #ifdef USE_NDB_LOCK
 #define USE_NDB_DMA
