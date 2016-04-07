@@ -41,6 +41,8 @@
 #include "signal.h"
 #include "system_monitor.h"
 
+#define USE_LED_RED_FOR_TIMING
+
 #define USE_NDB_LOCK
 
 #ifdef USE_NDB_LOCK
@@ -400,7 +402,9 @@ static msg_t solution_thread(void *arg)
       /* Not enough sats, keep on looping. */
       continue;
     }
-
+#ifdef USE_LED_RED_FOR_TIMING
+    led_on(LED_RED);
+#endif
     /* Got enough sats/ephemerides, do a solution. */
     /* TODO: Instead of passing 32 LSBs of nap_timing_count do something
      * more intelligent with the solution time.
@@ -429,6 +433,9 @@ static msg_t solution_thread(void *arg)
                                 (double)((u32)nav_tc)/SAMPLE_FREQ, p_e_meas);
 #ifdef USE_NDB_LOCK
     ndb_unlock();
+#endif
+#ifdef USE_LED_RED_FOR_TIMING
+    led_off(LED_RED);
 #endif
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
@@ -663,8 +670,9 @@ static msg_t time_matched_obs_thread(void *arg)
 
     /* Blink red LED for 20ms. */
     systime_t t_blink = chTimeNow() + MS2ST(50);
+#ifndef USE_LED_RED_FOR_TIMING
     led_on(LED_RED);
-
+#endif
     obss_t *obss;
     /* Look through the mailbox (FIFO queue) of locally generated observations
      * looking for one that matches in time. */
@@ -737,7 +745,9 @@ static msg_t time_matched_obs_thread(void *arg)
     }
     chSysUnlock();
 
+#ifndef USE_LED_RED_FOR_TIMING
     led_off(LED_RED);
+#endif
   }
   return 0;
 }
