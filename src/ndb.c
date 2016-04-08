@@ -332,7 +332,15 @@ void ndb_unlock()
 void ndb_retrieve(void* out, void* cached, size_t size)
 {
   ndb_lock();
-  memcpy(out, cached, size);
+  /*memcpy(out, cached, size);*/
+  u8 *d = out;
+  u8 *s = cached;
+  u32 n = (u32)size;
+  u32 i = 0;
+  while(i < n) {
+    d[i] = s[i];
+    i++;
+  }
   ndb_unlock();
 }
 
