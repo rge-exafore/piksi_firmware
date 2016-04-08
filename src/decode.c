@@ -111,7 +111,7 @@ void decode_setup(void)
   }
 
   chThdCreateStatic(wa_decode_thread, sizeof(wa_decode_thread),
-                    NORMALPRIO-1, decode_thread, NULL);
+                    125/*NORMALPRIO-1*/, decode_thread, NULL);
 }
 
 /** Register a decoder interface to enable decoding for a constellation / band.

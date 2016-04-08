@@ -836,7 +836,7 @@ void solution_setup()
 
   /* Start solution thread */
   chThdCreateStatic(wa_solution_thread, sizeof(wa_solution_thread),
-                    HIGHPRIO-2, solution_thread, NULL);
+                    123/*HIGHPRIO-2*/, solution_thread, NULL);
   chThdCreateStatic(wa_time_matched_obs_thread,
                     sizeof(wa_time_matched_obs_thread), LOWPRIO,
                     time_matched_obs_thread, NULL);
