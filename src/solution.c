@@ -43,7 +43,7 @@
 
 #define USE_LED_RED_FOR_TIMING
 
-/*#define USE_NDB_LOCK*/
+#define USE_NDB_LOCK
 
 #ifdef USE_NDB_LOCK
 #define USE_NDB_DMA
@@ -371,9 +371,9 @@ static msg_t solution_thread(void *arg)
 
   systime_t deadline = chTimeNow() + MS2ST(100);
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
-#ifndef USE_NDB_DMA
+/* #ifndef USE_NDB_DMA */
   ephemeris_t ephe_cache[MAX_CHANNELS];
-#endif
+/* #endif */
 
   while (TRUE) {
     chThdSleepUntilCheck(deadline);
@@ -403,7 +403,7 @@ static msg_t solution_thread(void *arg)
       continue;
     }
 #ifdef USE_LED_RED_FOR_TIMING
-    led_on(LED_RED);
+    /* led_on(LED_RED); */
 #endif
     /* Got enough sats/ephemerides, do a solution. */
     /* TODO: Instead of passing 32 LSBs of nap_timing_count do something
@@ -422,7 +422,10 @@ static msg_t solution_thread(void *arg)
       ndb_ephemeris_read(meas[i].sid, &ephe_cache[i]);
       p_e_meas[i] = &ephe_cache[i];
 #else
+      led_on(LED_RED);
       p_e_meas[i] = ndb_ephemeris_get(meas[i].sid);
+      led_off(LED_RED);
+      ndb_ephemeris_read(meas[i].sid, &ephe_cache[i]);
 #endif
     }
 
@@ -435,7 +438,7 @@ static msg_t solution_thread(void *arg)
     ndb_unlock();
 #endif
 #ifdef USE_LED_RED_FOR_TIMING
-    led_off(LED_RED);
+    /* led_off(LED_RED); */
 #endif
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
@@ -502,6 +505,7 @@ static msg_t solution_thread(void *arg)
               e_nav_meas_tdcp[i] = &ephe_cache[i];
 #else
               e_nav_meas_tdcp[i] = ndb_ephemeris_get(nav_meas_tdcp[i].sid);
+              ndb_ephemeris_read(nav_meas_tdcp[i].sid, &ephe_cache[i]);
 #endif
             }
             sdiff_t sdiffs[MAX_CHANNELS];
