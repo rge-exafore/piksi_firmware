@@ -187,6 +187,7 @@ enum ndb_op_code ndb_update_cache_almanac(almanac_t *cached_a,
  *  Function called every NV_WRITE_REQ_TIMEOUT ms from NDB thread*/
 void ndb_p1_sbp_update()
 {
+#ifdef NEVER_DEFINED
   static u32 count = 0;
   static u32 i = 0;
   static bool tx_en = true; /* initially enable SBP TX */
@@ -220,4 +221,5 @@ void ndb_p1_sbp_update()
   }
 
   count++;
+#endif
 }

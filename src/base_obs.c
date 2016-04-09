@@ -301,7 +301,7 @@ static void obs_callback(u16 sender_id, u8 len, u8 msg[], void* context)
 
     /* Check if we have an ephemeris for this satellite, we will need this to
      * fill in satellite position etc. parameters. */
-    ephemeris_t ephe;
+    static ephemeris_t ephe;
     if((ndb_ephemeris_read(sid, &ephe) == NDB_ERR_NONE) &&
        (ephemeris_valid(&ephe, &t))) {
       /* Unpack the observation into a navigation_measurement_t. */
