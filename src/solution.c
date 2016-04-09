@@ -369,6 +369,7 @@ static void solution_thread(void *arg)
 
   systime_t deadline = chVTGetSystemTimeX();
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
+  ephemeris_t ephe_cache[MAX_CHANNELS];
 
   while (TRUE) {
     do {
@@ -413,6 +414,7 @@ static void solution_thread(void *arg)
       p_meas[i] = &meas[i];
       p_nav_meas[i] = &nav_meas[i];
       p_e_meas[i] = ephemeris_get(meas[i].sid);
+      memcpy(&ephe_cache[i], p_e_meas[i], sizeof(ephemeris_t));
     }
 
     ephemeris_lock();
@@ -477,8 +479,10 @@ static void solution_thread(void *arg)
 
             ephemeris_lock();
             const ephemeris_t *e_nav_meas_tdcp[n_ready_tdcp];
-            for (u32 i=0; i<n_ready_tdcp; i++)
+            for (u32 i=0; i<n_ready_tdcp; i++) {
               e_nav_meas_tdcp[i] = ephemeris_get(nav_meas_tdcp[i].sid);
+              memcpy(&ephe_cache[i], e_nav_meas_tdcp[i], sizeof(ephemeris_t));
+            }
 
             sdiff_t sdiffs[MAX(base_obss.n, n_ready_tdcp)];
             u8 num_sdiffs = make_propagated_sdiffs(n_ready_tdcp, nav_meas_tdcp,
