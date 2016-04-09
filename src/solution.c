@@ -369,7 +369,7 @@ static void solution_thread(void *arg)
 
   systime_t deadline = chVTGetSystemTimeX();
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
-  ephemeris_t ephe_cache[MAX_CHANNELS];
+  static ephemeris_t ephe_cache[MAX_CHANNELS];
 
   while (TRUE) {
     do {
