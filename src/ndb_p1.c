@@ -19,9 +19,10 @@
 
 ephemeris_t ndb_ephemeris[PLATFORM_SIGNAL_COUNT] _CCM;
 ndb_element_metadata_t ndb_ephemeris_md[PLATFORM_SIGNAL_COUNT] _CCM;
+#ifdef USE_ALMANACS
 almanac_t ndb_almanac[PLATFORM_SIGNAL_COUNT];
 ndb_element_metadata_t ndb_almanac_md[PLATFORM_SIGNAL_COUNT];
-
+#endif
 #define NDB_EPHE_FILE_NAME   "ephe"
 #define NDB_ALMA_FILE_NAME   "alma"
 
@@ -61,6 +62,7 @@ enum ndb_op_code ndb_p1_init()
     ndb_ephemeris_md[i].next = NULL;
     ndb_ephemeris_md[i].update_c = 1;
   }
+#ifdef USE_ALMANACS
   memset(ndb_almanac, 0, sizeof(ndb_almanac));
   for (u32 i = 0; i < PLATFORM_SIGNAL_COUNT; i++) {
     ndb_almanac[i].sid = sid_from_global_index(i);
@@ -81,6 +83,7 @@ enum ndb_op_code ndb_p1_init()
     ndb_almanac_md[i].next = NULL;
     ndb_almanac_md[i].update_c = 1;
   }
+#endif
   return NDB_ERR_NONE;
 }
 
@@ -145,11 +148,11 @@ enum ndb_op_code ndb_ephemeris_info(gnss_signal_t sid, u8* v, u8* h,
   return NDB_ERR_NONE;
 }
 
+#ifdef USE_ALMANACS
 enum ndb_op_code ndb_almanac_read(gnss_signal_t sid, almanac_t *a)
 {
   u16 idx = sid_to_global_index(sid);
   ndb_retrieve(a, &ndb_almanac[idx], sizeof(almanac_t));
-
   return NDB_ERR_NONE;
 }
 
@@ -179,6 +182,7 @@ enum ndb_op_code ndb_update_cache_almanac(almanac_t *cached_a,
 
   return NDB_ERR_NONE;
 }
+#endif
 
 #define EPHEMERIS_MESSAGE_SPACING_cycle        (200 / NV_WRITE_REQ_TIMEOUT)
 #define EPHEMERIS_TRANSMIT_EPOCH_SPACING_cycle (15 * 1000 / NV_WRITE_REQ_TIMEOUT)

@@ -268,7 +268,7 @@ static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
         dopp_uncertainty = DOPP_UNCERT_EPHEM;
     } else {
       almanac_t alma;
-      oc = ndb_almanac_read(sid, &alma);
+      oc = NDB_ERR_MISSING_IE; /*ndb_almanac_read(sid, &alma);*/
       if((NDB_ERR_NONE == oc) && (alma.valid)) {
         calc_sat_az_el_almanac(&alma, t->tow, t->wn-1024,
                                position_solution.pos_ecef, &_, &el_d);
