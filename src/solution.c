@@ -370,7 +370,7 @@ static msg_t solution_thread(void *arg)
   systime_t deadline = chTimeNow() + MS2ST(100);
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
 #ifndef USE_NDB_DMA
-  ephemeris_t ephe_cache[MAX_CHANNELS];
+  static ephemeris_t ephe_cache[MAX_CHANNELS];
 #endif
 
   while (TRUE) {
