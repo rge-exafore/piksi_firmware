@@ -361,7 +361,7 @@ bool chThdSleepUntilCheck(systime_t time)
   return true;
 }
 
-static WORKING_AREA_CCM(wa_solution_thread, 8000);
+static WORKING_AREA_CCM(wa_solution_thread, 9000);
 static void solution_thread(void *arg)
 {
   (void)arg;
@@ -369,7 +369,7 @@ static void solution_thread(void *arg)
 
   systime_t deadline = chVTGetSystemTimeX();
   static navigation_measurement_t nav_meas_old[MAX_CHANNELS];
-  static ephemeris_t ephe_cache[MAX_CHANNELS];
+  ephemeris_t ephe_cache[MAX_CHANNELS];
 
   while (TRUE) {
     do {
