@@ -361,7 +361,7 @@ bool chThdSleepUntilCheck(systime_t time)
   return true;
 }
 
-static WORKING_AREA_CCM(wa_solution_thread, 9000);
+static WORKING_AREA_CCM(wa_solution_thread, 10000);
 static void solution_thread(void *arg)
 {
   (void)arg;

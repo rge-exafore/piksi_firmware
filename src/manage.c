@@ -113,8 +113,9 @@ static tracking_startup_fifo_t tracking_startup_fifo;
 
 static MUTEX_DECL(tracking_startup_mutex);
 
+#ifdef NEVER_DEFINED
 static almanac_t almanac[PLATFORM_SIGNAL_COUNT];
-
+#endif
 static float elevation_mask = 0.0; /* degrees */
 static bool sbas_enabled = false;
 
@@ -191,8 +192,9 @@ void manage_acq_setup()
     acq_status[i].sid = sid_from_global_index(i);
 
     track_mask[i] = false;
+#ifdef NEVER_DEFINED
     almanac[i].valid = 0;
-
+#endif
     if (!sbas_enabled &&
         (sid_to_constellation(acq_status[i].sid) == CONSTELLATION_SBAS)) {
       acq_status[i].masked = true;
@@ -243,8 +245,11 @@ static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
       return SCORE_COLDSTART;
 
     float el = 0;
+#ifdef NEVER_DEFINED
     double el_d, _, dopp_hint = 0, dopp_uncertainty = DOPP_UNCERT_ALMANAC;
-
+#else
+    double _, dopp_hint = 0, dopp_uncertainty = DOPP_UNCERT_ALMANAC;
+#endif
     /* Do we have a suitable ephemeris for this sat?  If so, use
        that in preference to the almanac. */
     const ephemeris_t *e = ephemeris_get(sid);
@@ -266,6 +271,7 @@ static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
       if (time_quality >= TIME_FINE)
         dopp_uncertainty = DOPP_UNCERT_EPHEM;
     } else {
+#ifdef NEVER_DEFINED
       const almanac_t *a = &almanac[sid_to_global_index(sid)];
       if (a->valid) {
         calc_sat_az_el_almanac(a, t->tow, t->wn-1024,
@@ -276,6 +282,9 @@ static u16 manage_warm_start(gnss_signal_t sid, const gps_time_t* t,
         dopp_hint = -calc_sat_doppler_almanac(a, t->tow, t->wn,
                                               position_solution.pos_ecef);
       } else {
+#else
+      {
+#endif
         return SCORE_COLDSTART; /* Couldn't determine satellite state. */
       }
     }
