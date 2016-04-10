@@ -31,7 +31,7 @@ MUTEX_DECL(es_mutex);
 static ephemeris_t es[PLATFORM_SIGNAL_COUNT] _CCM;
 static ephemeris_t es_candidate[PLATFORM_SIGNAL_COUNT] _CCM;
 
-static THD_WORKING_AREA(wa_ephemeris_thread, 1400);
+static THD_WORKING_AREA(wa_ephemeris_thread, 6400);
 
 static void ephemeris_thread(void *arg)
 {
