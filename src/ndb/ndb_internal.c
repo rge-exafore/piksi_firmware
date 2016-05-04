@@ -66,6 +66,8 @@ bool ndb_wq_empty()
 
 enum ndb_op_code ndb_wq_put(ndb_element_metadata_t* md)
 {
+  (void)md;
+#ifdef NEVER_DEFINED
   if (NULL == wq_last) {
     wq_first = wq_last = md;
   } else {
@@ -75,6 +77,7 @@ enum ndb_op_code ndb_wq_put(ndb_element_metadata_t* md)
   md->next = NULL;
   md->nv_data.state |= NDB_ENQUEUED;
   log_debug("%p enqueued (%p, %p)", md, wq_first, wq_last);
+#endif
   return NDB_ERR_NONE;
 }
 
