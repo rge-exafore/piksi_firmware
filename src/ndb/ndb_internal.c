@@ -219,8 +219,6 @@ static void ndb_service_thread(void* p)
 void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
 {
   ndb_element_metadata_t* md;
-  ndb_element_metadata_t md_copy;
-  enum ndb_op_code ret;
 
   *data_write_ok = *md_write_ok = false;
 
@@ -229,6 +227,10 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
   ndb_wq_get(&md);
 
   assert(md != NULL);
+
+#ifdef NEVER_DEFINED
+  ndb_element_metadata_t md_copy;
+  enum ndb_op_code ret;
 
   u16 element_size = md->file->data_size;
   u16 n_elements = md->file->n_elements;
@@ -261,6 +263,10 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
   ret = ndb_write_file_data(md->file, offset, &md_copy.nv_data,
                             sizeof(ndb_element_metadata_nv_t));
   *md_write_ok = NDB_ERR_NONE == ret;
+#else
+  ndb_unlock();
+#endif
+
 }
 
 int ndb_read_pos(int fd, void *buf, unsigned size, int offset)
