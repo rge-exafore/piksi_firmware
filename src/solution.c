@@ -406,6 +406,8 @@ static void solution_thread(void *arg)
       solution_simulation();
     }
 
+    reg_step(WD_NOTIFY_SOLUTION, 1);
+
     u8 n_ready = 0;
     channel_measurement_t meas[MAX_CHANNELS];
     for (u8 i=0; i<nap_track_n_channels; i++) {
@@ -417,10 +419,14 @@ static void solution_thread(void *arg)
       tracking_channel_unlock(i);
     }
 
+    reg_step(WD_NOTIFY_SOLUTION, 2);
+
     if (n_ready < 4) {
       /* Not enough sats, keep on looping. */
       continue;
     }
+
+    reg_step(WD_NOTIFY_SOLUTION, 3);
 
     /* Got enough sats/ephemerides, do a solution. */
     /* TODO: Instead of passing 32 LSBs of nap_timing_count do something
@@ -439,22 +445,32 @@ static void solution_thread(void *arg)
       p_e_meas[i] = &ephe_cache[i];
     }
 
+    reg_step(WD_NOTIFY_SOLUTION, 4);
+
     calc_navigation_measurement(n_ready, p_meas, p_nav_meas,
                                 (double)((u32)nav_tc)/SAMPLE_FREQ, p_e_meas);
+
+    reg_step(WD_NOTIFY_SOLUTION, 5);
 
     static navigation_measurement_t nav_meas_tdcp[MAX_CHANNELS];
     u8 n_ready_tdcp = tdcp_doppler(n_ready, nav_meas, n_ready_old,
                                    nav_meas_old, nav_meas_tdcp);
+
+    reg_step(WD_NOTIFY_SOLUTION, 6);
 
     /* Store current observations for next time for
      * TDCP Doppler calculation. */
     memcpy(nav_meas_old, nav_meas, sizeof(nav_meas));
     n_ready_old = n_ready;
 
+    reg_step(WD_NOTIFY_SOLUTION, 7);
+
     if (n_ready_tdcp < 4) {
       /* Not enough sats to compute PVT */
       continue;
     }
+
+    reg_step(WD_NOTIFY_SOLUTION, 8);
 
     dops_t dops;
     s8 ret;
@@ -462,33 +478,46 @@ static void solution_thread(void *arg)
     if ((ret = calc_PVT(n_ready_tdcp, nav_meas_tdcp, disable_raim,
                         &position_solution, &dops)) >= 0) {
 
+      reg_step(WD_NOTIFY_SOLUTION, 9);
+
       if (ret == 1)
         log_warn("calc_PVT: RAIM repair");
 
       /* Update global position solution state. */
       position_updated();
+      reg_step(WD_NOTIFY_SOLUTION, 10);
       set_time_fine(nav_tc, position_solution.time);
+      reg_step(WD_NOTIFY_SOLUTION, 11);
 
       /* Save elevation angles every so often */
       DO_EVERY((u32)soln_freq,
                update_sat_elevations(nav_meas_tdcp, n_ready_tdcp,
                                      position_solution.pos_ecef));
+
+      reg_step(WD_NOTIFY_SOLUTION, 12);
+
       if (!simulation_enabled()) {
         /* Output solution. */
         solution_send_sbp(&position_solution, &dops);
+        reg_step(WD_NOTIFY_SOLUTION, 13);
         solution_send_nmea(&position_solution, &dops,
                            n_ready_tdcp, nav_meas_tdcp,
                            NMEA_GGA_FIX_GPS);
+        reg_step(WD_NOTIFY_SOLUTION, 14);
       }
 
       /* If we have a recent set of observations from the base station, do a
        * differential solution. */
       double pdt;
+      reg_step(WD_NOTIFY_SOLUTION, 15);
       chMtxLock(&base_obs_lock);
+      reg_step(WD_NOTIFY_SOLUTION, 16);
 
       if (base_obss.n > 0 && !simulation_enabled()) {
+        reg_step(WD_NOTIFY_SOLUTION, 17);
         if ((pdt = gpsdifftime(&position_solution.time, &base_obss.t))
               < MAX_AGE_OF_DIFFERENTIAL) {
+          reg_step(WD_NOTIFY_SOLUTION, 18);
 
           /* Propagate base station observations to the current time and
            * process a low-latency differential solution. */
@@ -496,26 +525,36 @@ static void solution_thread(void *arg)
           /* Hook in low-latency filter here. */
           if (dgnss_soln_mode == SOLN_MODE_LOW_LATENCY &&
               base_obss.has_pos) {
+            reg_step(WD_NOTIFY_SOLUTION, 19);
             const ephemeris_t *e_nav_meas_tdcp[n_ready_tdcp];
             for (u32 i=0; i<n_ready_tdcp; i++)
             {
               ndb_ephemeris_read(nav_meas_tdcp[i].sid, &ephe_cache[i]);
               e_nav_meas_tdcp[i] = &ephe_cache[i];
             }
+            reg_step(WD_NOTIFY_SOLUTION, 20);
             sdiff_t sdiffs[MAX(base_obss.n, n_ready_tdcp)];
             u8 num_sdiffs = make_propagated_sdiffs(n_ready_tdcp, nav_meas_tdcp,
                                     base_obss.n, base_obss.nm,
                                     base_obss.sat_dists, base_obss.pos_ecef,
                                     e_nav_meas_tdcp, &position_solution.time,
                                     sdiffs);
+            reg_step(WD_NOTIFY_SOLUTION, 21);
             if (num_sdiffs >= 4) {
+              reg_step(WD_NOTIFY_SOLUTION, 22);
               output_baseline(num_sdiffs, sdiffs, &position_solution.time, pdt, 
                               dops.hdop, base_obss.sender_id);
+              reg_step(WD_NOTIFY_SOLUTION, 23);
             }
+            reg_step(WD_NOTIFY_SOLUTION, 24);
           }
+          reg_step(WD_NOTIFY_SOLUTION, 25);
         }
+        reg_step(WD_NOTIFY_SOLUTION, 26);
       }
+      reg_step(WD_NOTIFY_SOLUTION, 27);
       chMtxUnlock(&base_obs_lock);
+      reg_step(WD_NOTIFY_SOLUTION, 28);
 
       /* Calculate the time of the nearest solution epoch, were we expected
        * to be and calculate how far we were away from it. */
@@ -528,14 +567,17 @@ static void solution_thread(void *arg)
       /* Output obervations only every obs_output_divisor times, taking
        * care to ensure that the observations are aligned. */
       double t_check = expected_tow * (soln_freq / obs_output_divisor);
+      reg_step(WD_NOTIFY_SOLUTION, 29);
       if (fabs(t_err) < OBS_PROPAGATION_LIMIT &&
           fabs(t_check - (u32)t_check) < TIME_MATCH_THRESHOLD) {
+        reg_step(WD_NOTIFY_SOLUTION, 30);
         /* Propagate observation to desired time. */
         for (u8 i=0; i<n_ready_tdcp; i++) {
           nav_meas_tdcp[i].pseudorange -= t_err * nav_meas_tdcp[i].doppler *
             (GPS_C / GPS_L1_HZ);
           nav_meas_tdcp[i].carrier_phase += t_err * nav_meas_tdcp[i].doppler;
         }
+        reg_step(WD_NOTIFY_SOLUTION, 31);
 
         /* Update observation time. */
         gps_time_t new_obs_time;
@@ -545,6 +587,7 @@ static void solution_thread(void *arg)
         if (!simulation_enabled()) {
           send_observations(n_ready_tdcp, &new_obs_time, nav_meas_tdcp);
         }
+        reg_step(WD_NOTIFY_SOLUTION, 32);
 
         /* TODO: use a buffer from the pool from the start instead of
          * allocating nav_meas_tdcp as well. Downside, if we don't end up
@@ -552,19 +595,24 @@ static void solution_thread(void *arg)
          * observation from the mailbox for no good reason. */
 
         obss_t *obs = chPoolAlloc(&obs_buff_pool);
+        reg_step(WD_NOTIFY_SOLUTION, 33);
         msg_t ret;
         if (obs == NULL) {
           /* Pool is empty, grab a buffer from the mailbox instead, i.e.
            * overwrite the oldest item in the queue. */
+          reg_step(WD_NOTIFY_SOLUTION, 34);
           ret = chMBFetch(&obs_mailbox, (msg_t *)&obs, TIME_IMMEDIATE);
+          reg_step(WD_NOTIFY_SOLUTION, 35);
           if (ret != MSG_OK) {
             log_error("Pool full and mailbox empty!");
           }
         }
+        reg_step(WD_NOTIFY_SOLUTION, 36);
         obs->t = new_obs_time;
         obs->n = n_ready_tdcp;
         memcpy(obs->nm, nav_meas_tdcp, obs->n * sizeof(navigation_measurement_t));
         ret = chMBPost(&obs_mailbox, (msg_t)obs, TIME_IMMEDIATE);
+        reg_step(WD_NOTIFY_SOLUTION, 37);
         if (ret != MSG_OK) {
           /* We could grab another item from the mailbox, discard it and then
            * post our obs again but if the size of the mailbox and the pool
@@ -574,6 +622,8 @@ static void solution_thread(void *arg)
           log_error("Mailbox should have space!");
         }
       }
+
+      reg_step(WD_NOTIFY_SOLUTION, 38);
 
       /* Calculate time till the next desired solution epoch. */
       double dt = expected_tow - position_solution.time.tow;
@@ -589,6 +639,7 @@ static void solution_thread(void *arg)
       deadline += dt * CH_CFG_ST_FREQUENCY;
 
     } else {
+      reg_step(WD_NOTIFY_SOLUTION, 39);
       /* An error occurred with calc_PVT! */
       /* TODO: Make this based on time since last error instead of a simple
        * count. */
@@ -599,8 +650,11 @@ static void solution_thread(void *arg)
 
       /* Send just the DOPs */
       solution_send_sbp(0, &dops);
+      reg_step(WD_NOTIFY_SOLUTION, 40);
     }
+    reg_step(WD_NOTIFY_SOLUTION, 41);
   } /* while (TRUE) - main loop */
+  reg_step(WD_NOTIFY_SOLUTION, 42);
 }
 
 static bool init_done = false;
