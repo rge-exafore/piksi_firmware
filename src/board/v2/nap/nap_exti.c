@@ -83,26 +83,41 @@ void exti1_isr(EXTDriver *driver, expchannel_t channel)
 
 static void handle_nap_exti(void)
 {
+  reg_step(WD_NOTIFY_NAP_ISR, 1);
   u32 irq = nap_irq_rd_blocking();
+  reg_step(WD_NOTIFY_NAP_ISR, 2);
 
-  if (irq & NAP_IRQ_ACQ_DONE)
+  if (irq & NAP_IRQ_ACQ_DONE) {
+    reg_step(WD_NOTIFY_NAP_ISR, 3);
     acq_service_irq();
-
-  if (irq & NAP_IRQ_ACQ_LOAD_DONE)
-    acq_service_load_done();
-
-  if (irq & NAP_IRQ_TIMING_STROBE) {
-    chBSemReset(&timing_strobe_sem, TRUE);
   }
 
-  if (irq & NAP_IRQ_EXT_EVENT)
-    ext_event_service();
+  reg_step(WD_NOTIFY_NAP_ISR, 4);
+  if (irq & NAP_IRQ_ACQ_LOAD_DONE) {
+    reg_step(WD_NOTIFY_NAP_ISR, 5);
+    acq_service_load_done();
+  }
+  reg_step(WD_NOTIFY_NAP_ISR, 6);
 
+  if (irq & NAP_IRQ_TIMING_STROBE) {
+    reg_step(WD_NOTIFY_NAP_ISR, 7);
+    chBSemReset(&timing_strobe_sem, TRUE);
+  }
+  reg_step(WD_NOTIFY_NAP_ISR, 8);
+
+  if (irq & NAP_IRQ_EXT_EVENT) {
+    reg_step(WD_NOTIFY_NAP_ISR, 9);
+    ext_event_service();
+  }
+  reg_step(WD_NOTIFY_NAP_ISR, 10);
   /* Mask off everything but tracking irqs. */
   irq &= NAP_IRQ_TRACK_MASK;
   tracking_channels_update(irq);
+  reg_step(WD_NOTIFY_NAP_ISR, 11);
 
   u32 err = nap_error_rd_blocking();
+  reg_step(WD_NOTIFY_NAP_ISR, 12);
+
   if (err) {
     log_error("SwiftNAP Error: 0x%08X", (unsigned int)err);
     tracking_channels_missed_update_error(err);

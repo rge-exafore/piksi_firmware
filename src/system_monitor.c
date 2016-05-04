@@ -57,6 +57,13 @@ static thread_t *watchdog_thread_handle;
 static bool broadcast_surveyed_position = false;
 static double base_llh[3];
 
+static u32 thread_steps[WD_NOTIFY_NUM_THREADS];
+
+void reg_step(watchdog_notify_t t, int step)
+{
+  thread_steps[t] = step;
+}
+
 /* Global CPU time accumulator, used to measure thread CPU usage. */
 u64 g_ctime = 0;
 
@@ -74,12 +81,15 @@ u32 check_stack_free(thread_t *tp)
 
 void send_thread_states()
 {
+  int thread_steps_idx = 0;
   thread_t *tp = chRegFirstThread();
   while (tp) {
     msg_thread_state_t tp_state;
     u16 cpu = 1000.0f * tp->p_ctime / (float)g_ctime;
     tp_state.cpu = cpu;
-    tp_state.stack_free = check_stack_free(tp);
+    tp_state.stack_free = thread_steps_idx < WD_NOTIFY_NUM_THREADS ?
+        thread_steps[thread_steps_idx] : check_stack_free(tp);
+    thread_steps_idx++;
     strncpy(tp_state.name, chRegGetThreadNameX(tp), sizeof(tp_state.name));
     sbp_send_msg(SBP_MSG_THREAD_STATE, sizeof(tp_state), (u8 *)&tp_state);
 
@@ -208,6 +218,10 @@ static void debug_threads()
   const char* state[] = {
     CH_STATE_NAMES
   };
+
+  for (int i = 0; i < WD_NOTIFY_NUM_THREADS; i++) {
+    log_info("thread_steps[%d]=%d", i, thread_steps[i]);
+  }
   thread_t *tp = chRegFirstThread();
   while (tp) {
   log_info("%s (%u: %s): prio: %lu, flags: %u, wtobjp: %p",
@@ -290,6 +304,7 @@ void system_monitor_setup()
 void watchdog_notify(watchdog_notify_t thread_id)
 {
   chEvtSignal(watchdog_thread_handle, EVENT_MASK(thread_id));
+  reg_step(thread_id, 0);
 }
 
 /** \} */

@@ -67,7 +67,7 @@ bool ndb_wq_empty()
 enum ndb_op_code ndb_wq_put(ndb_element_metadata_t* md)
 {
   (void)md;
-#ifdef NEVER_DEFINED
+#ifndef NEVER_DEFINED
   if (NULL == wq_last) {
     wq_first = wq_last = md;
   } else {
