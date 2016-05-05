@@ -230,10 +230,8 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
 
 #ifdef NEVER_DEFINED
   ndb_element_metadata_t md_copy;
-  enum ndb_op_code ret;
 
   u16 element_size = md->file->data_size;
-  u16 n_elements = md->file->n_elements;
   u8 buf[element_size];
 
   assert((md->nv_data.state & (NDB_IE_DIRTY + NDB_MD_DIRTY)) != 0);
@@ -248,6 +246,8 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
 
   ndb_unlock();
 
+  enum ndb_op_code ret;
+
   if(md_copy.nv_data.state & NDB_IE_DIRTY)
     ret = ndb_write_file_data(md->file, element_size * md->index, &buf,
                               element_size);
@@ -258,12 +258,29 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
 
   md_copy.nv_data.state &= ~(NDB_IE_DIRTY + NDB_MD_DIRTY + NDB_ENQUEUED);
 
+  u16 n_elements = md->file->n_elements;
+
   cfs_offset_t offset = element_size * n_elements
       + sizeof(ndb_element_metadata_nv_t) * md->index;
   ret = ndb_write_file_data(md->file, offset, &md_copy.nv_data,
                             sizeof(ndb_element_metadata_nv_t));
   *md_write_ok = NDB_ERR_NONE == ret;
 #else
+  ndb_element_metadata_t md_copy;
+
+  u16 element_size = md->file->data_size;
+  u8 buf[element_size];
+
+  assert((md->nv_data.state & (NDB_IE_DIRTY + NDB_MD_DIRTY)) != 0);
+  assert((md->nv_data.state & NDB_ENQUEUED) != 0);
+
+  if(md->nv_data.state & NDB_IE_DIRTY)
+    memcpy(&buf, md->data, element_size);
+  memcpy(&md_copy, md, sizeof(ndb_element_metadata_t));
+
+  md->nv_data.state &= ~(NDB_IE_DIRTY + NDB_MD_DIRTY + NDB_ENQUEUED);
+  log_debug("%p dequeued (%p, %p)", md, wq_first, wq_last);
+
   ndb_unlock();
 #endif
 
