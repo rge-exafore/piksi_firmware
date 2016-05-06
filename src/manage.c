@@ -167,9 +167,7 @@ static void manage_acq_thread(void *arg)
   (void)arg;
   chRegSetThreadName("manage acq");
   while (TRUE) {
-    reg_step(WD_NOTIFY_ACQ_MGMT, 1);
     manage_acq();
-    reg_step(WD_NOTIFY_ACQ_MGMT, 2);
     manage_tracking_startup();
     watchdog_notify(WD_NOTIFY_ACQ_MGMT);
   }

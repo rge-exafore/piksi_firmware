@@ -33,6 +33,4 @@ typedef enum {
 
 void watchdog_notify(watchdog_notify_t thread_id);
 
-void reg_step(watchdog_notify_t t, int step);
-
 #endif
