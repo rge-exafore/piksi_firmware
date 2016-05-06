@@ -282,8 +282,27 @@ void ndb_wq_process(bool* data_write_ok, bool* md_write_ok)
   log_debug("%p dequeued (%p, %p)", md, wq_first, wq_last);
 
   ndb_unlock();
-#endif
 
+  enum ndb_op_code ret;
+
+  if(md_copy.nv_data.state & NDB_IE_DIRTY)
+    ret = ndb_write_file_data(md->file, element_size * md->index, &buf,
+                              element_size);
+  else
+    ret = NDB_ERR_NONE;
+
+  *data_write_ok = NDB_ERR_NONE == ret;
+
+  md_copy.nv_data.state &= ~(NDB_IE_DIRTY + NDB_MD_DIRTY + NDB_ENQUEUED);
+
+  u16 n_elements = md->file->n_elements;
+
+  cfs_offset_t offset = element_size * n_elements
+      + sizeof(ndb_element_metadata_nv_t) * md->index;
+  ret = ndb_write_file_data(md->file, offset, &md_copy.nv_data,
+                            sizeof(ndb_element_metadata_nv_t));
+  *md_write_ok = NDB_ERR_NONE == ret;
+#endif
 }
 
 int ndb_read_pos(int fd, void *buf, unsigned size, int offset)
