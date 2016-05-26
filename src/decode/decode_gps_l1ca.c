@@ -47,6 +47,7 @@ static const decoder_interface_t decoder_interface_gps_l1ca = {
   .num_decoders = NUM_GPS_L1CA_DECODERS
 };
 
+
 static decoder_interface_list_element_t list_element_gps_l1ca = {
   .interface = &decoder_interface_gps_l1ca,
   .next = 0
