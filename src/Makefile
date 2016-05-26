@@ -190,7 +190,14 @@ CPPWARN = -Wall -Wextra -Werror
 #
 
 # List all default C defines here, like -D_DEBUG=1
-GIT_VERSION := $(shell git describe --dirty)
+GIT_VERSION := $(shell git rev-parse --short=6 HEAD)
+GIT_VERSION += $(shell git -C ../libswiftnav rev-parse --short=6 HEAD)
+GIT_VERSION += $(shell date +%m%d%H%M)
+dash := -
+empty :=
+space := $(empty) $(empty)
+GIT_VERSION := $(subst $(space),$(dash),$(GIT_VERSION))
+
 DDEFS = -DGIT_VERSION="\"$(GIT_VERSION)\""
 
 # List all default ASM defines here, like -D_DEBUG=1
