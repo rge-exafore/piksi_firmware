@@ -10,6 +10,7 @@
  * WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
  */
 /* dummy commit */
+/* dummy commit 2*/
 #include <stdlib.h>
 #include <string.h>
 
